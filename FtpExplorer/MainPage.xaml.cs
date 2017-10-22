@@ -1,0 +1,670 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices.WindowsRuntime;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Input;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.Foundation;
+using Windows.Foundation.Collections;
+using Windows.Storage;
+using Windows.UI.Popups;
+using Windows.UI.Xaml;
+using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Controls.Primitives;
+using Windows.UI.Xaml.Data;
+using Windows.UI.Xaml.Input;
+using Windows.UI.Xaml.Media;
+using Windows.UI.Xaml.Navigation;
+
+// https://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x804 上介绍了“空白页”项模板
+
+namespace FtpExplorer
+{
+    /// <summary>
+    /// 可用于自身或导航至 Frame 内部的空白页。
+    /// </summary>
+    public sealed partial class MainPage : Page
+    {
+        FluentFTP.FtpClient client;
+        ObservableCollection<FtpListItemViewModel> listItemsVM = new ObservableCollection<FtpListItemViewModel>();
+
+        /// <summary>
+        /// 当前导航到的地址。考虑到FTP服务器不一定采用UTF-8编码，不需要对其转义。
+        /// </summary>
+        Uri currentAddress;
+        History<Uri> history = new History<Uri>();
+        SemaphoreSlim ftpSemaphore = new SemaphoreSlim(1, 1);
+        CancellationTokenSource cancelSource = new CancellationTokenSource();
+
+        System.Text.Encoding preferredEncoding;
+
+        public MainPage()
+        {
+            this.InitializeComponent();
+
+            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+            preferredEncoding = System.Text.Encoding.GetEncoding("GBK");
+
+            backButton.DataContext = history;
+            forwardButton.DataContext = history;
+
+            filesPanel.ItemsSource = listItemsVM;
+        }
+
+        protected override async void OnNavigatedTo(NavigationEventArgs e)
+        {
+            base.OnNavigatedTo(e);
+            if(e.Parameter is Uri uri)
+            {
+                await NavigateAsync(uri);
+                if (history.Current != currentAddress)
+                    history.Navigate(currentAddress);
+            }
+        }
+
+        /// <summary>
+        /// 导航到指定的地址。需要登录时自动弹出登录界面。导航失败时，自动导航到失败页面。
+        /// 不抛出异常。
+        /// </summary>
+        /// <param name="address">要导航到的地址</param>
+        /// <returns>导航是否成功</returns>
+        private async Task<bool> NavigateAsync(Uri address)
+        {
+            await ftpSemaphore.WaitAsync();
+            try
+            {
+                errorMessage.Visibility = Visibility.Collapsed;
+                progressBar.Visibility = Visibility.Visible;
+                progressBar.IsIndeterminate = true;
+
+                currentAddress = address;
+                // 显示新的地址
+                UriBuilder uriBuilder = new UriBuilder(currentAddress);
+                uriBuilder.UserName = string.Empty;
+                uriBuilder.Password = string.Empty;
+                addressBox.Text = uriBuilder.Uri.ToString();
+
+
+                // 不是ftp协议则抛出异常
+                if (address.Scheme != "ftp")
+                    throw new InvalidOperationException("只支持ftp协议");
+
+                // Host改变时重新连接
+                if (client == null)
+                {
+                    client = new FluentFTP.FtpClient
+                    {
+                        Host = address.Host,
+                        Port = address.Port,
+                        Credentials = GetCredential(address.UserInfo),
+                    };
+                    await FtpConnectAsync(client);
+                }
+                else if (client.Host != address.Host || !string.IsNullOrEmpty(address.UserInfo))
+                {
+                    client.Disconnect();
+                    client.Dispose();
+                    client = new FluentFTP.FtpClient
+                    {
+                        Host = address.Host,
+                        Port = address.Port,
+                        Credentials = GetCredential(address.UserInfo),
+                    };
+                    await FtpConnectAsync(client);
+                }
+
+                // FTP路径可能包含#号，#号后面的内容会被归入Fragment。
+                string remotePath = address.LocalPath + address.Fragment;
+
+                listItemsVM.Clear();
+                foreach (var item in await client.GetListingAsync(remotePath))
+                    listItemsVM.Add(await FtpListItemViewModel.FromFtpListItemAsync(item));
+
+                return true;
+            }
+            catch (FluentFTP.FtpCommandException exception)
+            {
+                if (exception.CompletionCode == "530")
+                {
+                    errorMessage.Text = "认证失败，请尝试登录。";
+                    loginButton.Flyout.ShowAt(loginButton);
+                    loginErrorMessage.Visibility = Visibility.Visible;
+                }
+                else
+                {
+                    errorMessage.Text = string.Format(
+                        "发生错误，FTP返回代码：{0}。详细信息：\n{1}", exception.CompletionCode, exception.Message);
+                }
+
+                errorMessage.Visibility = Visibility.Visible;
+                listItemsVM.Clear();
+
+                return false;
+            }
+            catch (Exception exception)
+            {
+                errorMessage.Text = string.Format("发生错误。详细信息：\n{0}", exception.Message);
+                errorMessage.Visibility = Visibility.Visible;
+                listItemsVM.Clear();
+
+                return false;
+            }
+            finally
+            {
+                progressBar.Visibility = Visibility.Collapsed;
+                ftpSemaphore.Release();
+            }
+        }
+
+        private async Task FtpConnectAsync(FluentFTP.FtpClient client)
+        {
+            var file = await ApplicationData.Current.TemporaryFolder.CreateFileAsync("log.log", CreationCollisionOption.OpenIfExists);
+            FluentFTP.FtpTrace.LogToFile = file.Path;
+
+            client.DataConnectionType = FluentFTP.FtpDataConnectionType.PASV;
+            client.DownloadDataType = FluentFTP.FtpDataType.Binary;
+            await client.ConnectAsync();
+            if (client.Capabilities.HasFlag(FluentFTP.FtpCapability.UTF8))
+            {
+                client.Encoding = System.Text.Encoding.UTF8;
+            }
+            else
+            {
+                client.Encoding = preferredEncoding;
+            }
+        }
+
+        private async Task OpenFileAsync(Uri address)
+        {
+            // 不是ftp协议则抛出异常
+            if (address.Scheme != "ftp")
+                throw new InvalidOperationException();
+
+            await ftpSemaphore.WaitAsync();
+
+            try
+            {
+                progressBar.Visibility = Visibility.Visible;
+                progressBar.IsIndeterminate = true;
+
+                cancelSource = new CancellationTokenSource();
+
+                var client = this.client;
+
+                // Host改变时重新连接
+                if (client == null || client.Host != address.Host)
+                {
+                    client = new FluentFTP.FtpClient
+                    {
+                        Host = address.Host,
+                        Port = address.Port,
+                        Credentials = GetCredential(address.UserInfo)
+                    };
+                    await FtpConnectAsync(client);
+                }
+
+                if (cancelSource.IsCancellationRequested)
+                    return;
+
+                string remotePath = address.LocalPath + address.Fragment;
+                string fileName = Path.GetFileName(remotePath);
+                var localFolder = ApplicationData.Current.TemporaryFolder;
+                var localFile = await localFolder.CreateFileAsync(
+                    fileName, CreationCollisionOption.GenerateUniqueName);
+                var localPath = localFile.Path;
+
+                Progress<double> progress = new Progress<double>(x =>
+                {
+                    if (double.IsNaN(x) || double.IsInfinity(x))
+                    {
+                        progressBar.IsIndeterminate = true;
+                    }
+                    else
+                    {
+                        progressBar.IsIndeterminate = false;
+                        progressBar.Value = x;
+                    }
+                });
+                await client.DownloadFileAsync(localPath, remotePath, true, FluentFTP.FtpVerify.Retry, cancelSource.Token, progress);
+                progressBar.IsIndeterminate = true;
+
+                if (cancelSource.IsCancellationRequested)
+                    return;
+
+                File.SetAttributes(localFile.Path, System.IO.FileAttributes.ReadOnly | File.GetAttributes(localFile.Path));
+                //Windows.Storage.Provider.CachedFileUpdater.SetUpdateInformation(localFile, address.ToString(), Windows.Storage.Provider.ReadActivationMode.BeforeAccess, Windows.Storage.Provider.WriteActivationMode.AfterWrite, Windows.Storage.Provider.CachedFileOptions.RequireUpdateOnAccess);
+
+                var launchSuccess = await Windows.System.Launcher.LaunchFileAsync(localFile);
+                if (!launchSuccess)
+                    await Windows.System.Launcher.LaunchFolderAsync(localFolder);
+            }
+            catch (Exception exception)
+            {
+                var errorText = string.Format("发生错误。详细信息：\n{0}", exception.Message);
+                var errorDialog = new MessageDialog(errorText, "无法打开文件");
+                await errorDialog.ShowAsync();
+            }
+            finally
+            {
+                progressBar.Visibility = Visibility.Collapsed;
+                ftpSemaphore.Release();
+            }
+        }
+
+        private async Task UploadFilesAsync(IEnumerable<FileUploadInfo> fileInfos)
+        {
+            await ftpSemaphore.WaitAsync();
+            try
+            {
+                progressBar.Visibility = Visibility.Visible;
+                progressBar.IsIndeterminate = true;
+
+                cancelSource = new CancellationTokenSource();
+                bool overwriteAll = false;
+
+                foreach (var fileInfo in fileInfos)
+                {
+                    if (!overwriteAll && await client.FileExistsAsync(fileInfo.RemotePath))
+                    {
+                        OverwriteDialog content = new OverwriteDialog
+                        {
+                            Text = string.Format("文件{0}已存在，是否覆盖？", fileInfo.File.Name),
+                            CheckBoxText = "对所有项目执行此操作"
+                        };
+                        ContentDialog dialog = new ContentDialog()
+                        {
+                            Content = content,
+                            PrimaryButtonText = "覆盖",
+                            IsPrimaryButtonEnabled = true,
+                            CloseButtonText = "跳过"
+                        };
+                        switch (await dialog.ShowAsync())
+                        {
+                            case ContentDialogResult.Primary:
+                                if (content.IsChecked)
+                                    overwriteAll = true;
+                                break;
+                            case ContentDialogResult.None:
+                                if (content.IsChecked)
+                                    goto CancelAll;
+                                continue;
+                        }
+                    }
+
+                    Progress<double> progress = new Progress<double>(x =>
+                    {
+                        progressBar.IsIndeterminate = false;
+                        progressBar.Value = x;
+                    });
+
+                    using (Stream fStream = await fileInfo.File.OpenStreamForReadAsync())
+                    {
+                        if (!await client.UploadAsync(fStream, fileInfo.RemotePath, FluentFTP.FtpExists.Overwrite, true, cancelSource.Token, progress))
+                            throw new Exception("File upload failed");
+                    }
+
+                    progressBar.IsIndeterminate = true;
+
+                    if (cancelSource.IsCancellationRequested)
+                        break;
+                }
+                CancelAll:
+
+                progressBar.IsIndeterminate = true;
+            }
+            finally
+            {
+                ftpSemaphore.Release();
+                progressBar.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private async Task UploadStorageItems(IEnumerable<IStorageItem> storageItems, string remotePath)
+        {
+            try
+            {
+                List<FileUploadInfo> filesToUpload = new List<FileUploadInfo>();
+                foreach (var item in storageItems)
+                {
+                    if (item is StorageFile file)
+                    {
+                        filesToUpload.Add(new FileUploadInfo
+                        {
+                            File = file,
+                            RemotePath = Path.Combine(remotePath, file.Name)
+                        });
+                    }
+                    else if (item is StorageFolder folder)
+                    {
+                        await FileUploadInfo.LoadFromFolderAsync(folder, remotePath, filesToUpload);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debugger.Break();
+                    }
+                }
+
+                await UploadFilesAsync(filesToUpload);
+
+                await NavigateAsync(currentAddress);
+            }
+            catch (Exception ex)
+            {
+                string message;
+                message = string.Format("无法上传文件。错误信息：\n{0}", ex.Message);
+                if (ex.InnerException is FluentFTP.FtpCommandException cmdEx)
+                {
+                    if (cmdEx.CompletionCode == "550")
+                        message = "上传失败，没有访问权限。";
+                }
+                ContentDialog dialog = new ContentDialog()
+                {
+                    Content = message,
+                    CloseButtonText = "确定"
+                };
+                await dialog.ShowAsync();
+            }
+        }
+
+        /// <summary>
+        /// 删除指定的项目并在删除前要求用户确认。
+        /// </summary>
+        /// <param name="item">要删除的项目</param>
+        /// <returns>是否已删除项目</returns>
+        private async Task<bool> DeleteItemAsync(FluentFTP.FtpListItem item)
+        {
+            await ftpSemaphore.WaitAsync();
+            try
+            {
+                ContentDialog dialog = new ContentDialog()
+                {
+                    Content = string.Format("你确定要删除{0}吗？", item.Name),
+                    PrimaryButtonText = "是",
+                    CloseButtonText = "否"
+                };
+                var result = await dialog.ShowAsync();
+
+                progressBar.Visibility = Visibility.Visible;
+                progressBar.IsIndeterminate = true;
+
+                if (result != ContentDialogResult.Primary)
+                    return false;
+                switch (item.Type)
+                {
+                    case FluentFTP.FtpFileSystemObjectType.Directory:
+                        await client.DeleteDirectoryAsync(item.FullName);
+                        break;
+                    case FluentFTP.FtpFileSystemObjectType.File:
+                        await client.DeleteFileAsync(item.FullName);
+                        break;
+                    default:
+                        throw new NotImplementedException("不支持删除除文件夹和文件以外的类型");
+                }
+
+                progressBar.Visibility = Visibility.Collapsed;
+
+                ContentDialog resultDialog = new ContentDialog()
+                {
+                    Content = string.Format("已经成功删除{0}。", item.Name),
+                    CloseButtonText = "确定"
+                };
+                await resultDialog.ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                ContentDialog exceptionDialog = new ContentDialog()
+                {
+                    Content = string.Format("遇到未知错误。错误信息：{0}", ex.Message),
+                    CloseButtonText = "确定"
+                };
+                await exceptionDialog.ShowAsync();
+            }
+            finally
+            {
+                progressBar.Visibility = Visibility.Collapsed;
+
+                ftpSemaphore.Release();
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// 从“用户名:密码”格式的字符串获取登录信息
+        /// </summary>
+        /// <param name="source"></param>
+        /// <returns></returns>
+        private static System.Net.NetworkCredential GetCredential(string source)
+        {
+            var index = source.IndexOf(':');
+            if (index >= 0)
+            {
+                return new System.Net.NetworkCredential(
+                    userName: source.Substring(0, index),
+                    password: source.Substring(index + 1));
+            }
+            else if (string.IsNullOrEmpty(source))
+            {
+                return new System.Net.NetworkCredential(
+                    userName: "anonymous",
+                    password: "anonymous");
+            }
+            else
+            {
+                return new System.Net.NetworkCredential(
+                    userName: source,
+                    password: "");
+            }
+        }
+
+        private async void AddressBox_KeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter)
+            {
+                e.Handled = true;
+                Uri address;
+                if (!Uri.TryCreate(addressBox.Text, UriKind.Absolute, out address))
+                {
+                    if (!Uri.TryCreate("ftp://" + addressBox.Text, UriKind.Absolute, out address))
+                    {
+                        return;
+                    }
+                }
+
+                await NavigateAsync(address);
+                if (history.Current != currentAddress)
+                    history.Navigate(currentAddress);
+            }
+        }
+
+        private async void FilesPanel_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            var viewItem = e.ClickedItem as FtpListItemViewModel;
+            var item = viewItem.Source;
+            var addressBuilder = new UriBuilder(currentAddress);
+            addressBuilder.Path = item.FullName;
+            if (item.Type == FluentFTP.FtpFileSystemObjectType.Directory)
+            {
+                await NavigateAsync(addressBuilder.Uri);
+                if (history.Current != currentAddress)
+                    history.Navigate(currentAddress);
+            }
+            else
+                await OpenFileAsync(addressBuilder.Uri);
+        }
+
+        private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+        {
+            await NavigateAsync(currentAddress);
+        }
+
+        private async void BackButton_Click(object sender, RoutedEventArgs e)
+        {
+            await NavigateAsync(history.GoBack());
+        }
+
+        private async void ForwardButton_Click(object sender, RoutedEventArgs e)
+        {
+            await NavigateAsync(history.GoForward());
+        }
+
+        private void AnonymousCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            userNameBox.Text = "anonymous";
+            userNameBox.IsEnabled = false;
+            passwordBox.Password = "anonymous";
+            passwordBox.IsEnabled = false;
+        }
+
+        private void AnonymousCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            userNameBox.Text = string.Empty;
+            userNameBox.IsEnabled = true;
+            passwordBox.Password = string.Empty;
+            passwordBox.IsEnabled = true;
+        }
+
+        private async void LoginSubmitButton_Click(object sender, RoutedEventArgs e)
+        {
+            loginSubmitButton.IsEnabled = false;
+            await ftpSemaphore.WaitAsync();
+            loginSubmitButton.IsEnabled = false;
+            loginErrorMessage.Visibility = Visibility.Collapsed;
+            loginProgressBar.Visibility = Visibility.Visible;
+            try
+            {
+                if (client != null)
+                {
+                    try
+                    {
+                        client.Disconnect();
+                        client.Credentials = new System.Net.NetworkCredential()
+                        {
+                            UserName = userNameBox.Text,
+                            Password = passwordBox.Password
+                        };
+                        await FtpConnectAsync(client);
+                        var navigateResult = NavigateAsync(currentAddress);
+                        loginFlyout.Hide();
+                    }
+                    catch (FluentFTP.FtpCommandException exception)
+                    {
+                        if (exception.CompletionCode == "530")
+                        {
+                            loginErrorMessage.Visibility = Visibility.Visible;
+                            loginErrorMessage.Text = "用户名或密码不正确，请重试";
+                        }
+                        else
+                        {
+                            throw exception;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        loginErrorMessage.Visibility = Visibility.Visible;
+                        loginErrorMessage.Text = string.Format("发生错误：{0}", ex.Message);
+                    }
+                }
+                else
+                {
+                    loginErrorMessage.Visibility = Visibility.Visible;
+                    loginErrorMessage.Text = "未连接到FTP服务器，无法登录。";
+                }
+            }
+            finally
+            {
+                loginProgressBar.Visibility = Visibility.Collapsed;
+                loginSubmitButton.IsEnabled = true;
+                ftpSemaphore.Release();
+            }
+        }
+
+        private void LoginFlyout_Opening(object sender, object e)
+        {
+            loginErrorMessage.Visibility = Visibility.Collapsed;
+        }
+
+        private void FilesPanel_DragOver(object sender, DragEventArgs e)
+        {
+            if (e.DataView.AvailableFormats.Contains(StandardDataFormats.StorageItems))
+                e.AcceptedOperation = DataPackageOperation.Copy;
+            else
+                e.AcceptedOperation = DataPackageOperation.None;
+        }
+
+        private async void FilesPanel_Drop(object sender, DragEventArgs e)
+        {
+            if (e.DataView.AvailableFormats.Contains(StandardDataFormats.StorageItems))
+            {
+                e.Handled = true;
+                string remotePath = currentAddress.LocalPath + currentAddress.Fragment;
+                await UploadStorageItems(await e.DataView.GetStorageItemsAsync(), remotePath);
+            }
+        }
+
+        private void Folder_DragOver(object sender, DragEventArgs e)
+        {
+            if (e.DataView.AvailableFormats.Contains(StandardDataFormats.StorageItems))
+            {
+                e.AcceptedOperation = DataPackageOperation.Copy;
+                var senderVM = (sender as Grid).DataContext as FtpListItemViewModel;
+                e.DragUIOverride.Caption = string.Format("复制到{0}", senderVM.FileName);
+            }
+            else
+                e.AcceptedOperation = DataPackageOperation.None;
+        }
+
+        private async void Folder_Drop(object sender, DragEventArgs e)
+        {
+            if (e.DataView.AvailableFormats.Contains(StandardDataFormats.StorageItems))
+            {
+                e.Handled = true;
+                var senderVM = (sender as Grid).DataContext as FtpListItemViewModel;
+
+                string remotePath = currentAddress.LocalPath + currentAddress.Fragment;
+                remotePath = Path.Combine(remotePath, senderVM.FileName);
+                await UploadStorageItems(await e.DataView.GetStorageItemsAsync(), remotePath);
+            }
+        }
+
+        private async void ContextMenuDelete_Click(object sender, RoutedEventArgs e)
+        {
+            var senderVM = (sender as MenuFlyoutItem).DataContext as FtpListItemViewModel;
+
+            if (await DeleteItemAsync(senderVM.Source))
+                await NavigateAsync(currentAddress);
+        }
+    }
+
+    struct FileUploadInfo
+    {
+        public StorageFile File { get; set; }
+        public string RemotePath;
+
+        public override string ToString()
+        {
+            return File.Name + "," + RemotePath;
+        }
+
+        public static async Task LoadFromFolderAsync(StorageFolder folder, string remotePath, ICollection<FileUploadInfo> resultOutput)
+        {
+            string newPath = Path.Combine(remotePath, folder.Name);
+            var files = await folder.GetFilesAsync(Windows.Storage.Search.CommonFileQuery.DefaultQuery, 0, 100);
+            foreach (var file in files)
+            {
+                resultOutput.Add(new FileUploadInfo
+                {
+                    File = file,
+                    RemotePath = Path.Combine(newPath, file.Name)
+                });
+            }
+            foreach(var subFolder in await folder.GetFoldersAsync())
+            {
+                await LoadFromFolderAsync(subFolder, newPath, resultOutput);
+            }
+        }
+    }
+}

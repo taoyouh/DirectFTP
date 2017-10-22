@@ -1,0 +1,169 @@
+﻿<Page
+    x:Class="FtpExplorer.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:ftp="using:FluentFTP"
+    xmlns:local="using:FtpExplorer"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid
+            x:Name="topCommandPanel"
+            Grid.Row="0"
+            Background="{ThemeResource AppBarBackground}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Button
+                    x:Name="backButton"
+                    Click="BackButton_Click"
+                    IsEnabled="{Binding CanGoBack}"
+                    Style="{StaticResource NavigationBackButtonNormalStyle}">
+                    <SymbolIcon Symbol="Back" />
+                </Button>
+                <Button
+                    x:Name="forwardButton"
+                    Click="ForwardButton_Click"
+                    IsEnabled="{Binding CanGoForward}"
+                    Style="{StaticResource NavigationBackButtonNormalStyle}">
+                    <SymbolIcon Symbol="Forward" />
+                </Button>
+            </StackPanel>
+            <TextBox
+                x:Name="addressBox"
+                Grid.Column="1"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Center"
+                InputScope="Url"
+                KeyDown="AddressBox_KeyDown" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <Button
+                    x:Name="refreshButton"
+                    Click="RefreshButton_Click"
+                    Style="{StaticResource NavigationBackButtonNormalStyle}">
+                    <SymbolIcon Symbol="Refresh" />
+                </Button>
+                <Button x:Name="loginButton" Style="{StaticResource NavigationBackButtonNormalStyle}">
+                    <SymbolIcon Symbol="Account" />
+                    <Button.Flyout>
+                        <Flyout x:Name="loginFlyout" Opening="LoginFlyout_Opening">
+                            <StackPanel Width="200" Orientation="Vertical">
+                                <TextBlock
+                                    x:Name="loginErrorMessage"
+                                    Margin="6"
+                                    Foreground="Red"
+                                    Text="登录信息不正确"
+                                    TextWrapping="WrapWholeWords"
+                                    Visibility="Collapsed" />
+                                <CheckBox
+                                    x:Name="anonymousCheckBox"
+                                    Margin="6"
+                                    Checked="AnonymousCheckBox_Checked"
+                                    Content="匿名登录"
+                                    Unchecked="AnonymousCheckBox_Unchecked" />
+                                <TextBox
+                                    x:Name="userNameBox"
+                                    Margin="6"
+                                    PlaceholderText="用户名" />
+                                <PasswordBox
+                                    x:Name="passwordBox"
+                                    Margin="6"
+                                    InputScope="Password"
+                                    PlaceholderText="密码" />
+                                <Button
+                                    x:Name="loginSubmitButton"
+                                    Margin="6"
+                                    Click="LoginSubmitButton_Click"
+                                    Content="登录" />
+                                <ProgressBar
+                                    x:Name="loginProgressBar"
+                                    IsIndeterminate="True"
+                                    Visibility="Collapsed" />
+                            </StackPanel>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <TextBlock
+            x:Name="errorMessage"
+            Grid.Row="1"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            Visibility="Collapsed" />
+        <ProgressBar
+            x:Name="progressBar"
+            Grid.Row="1"
+            VerticalAlignment="Top"
+            Visibility="Collapsed" />
+        <GridView
+            x:Name="filesPanel"
+            Grid.Row="1"
+            AllowDrop="True"
+            DragOver="FilesPanel_DragOver"
+            Drop="FilesPanel_Drop"
+            IsItemClickEnabled="True"
+            ItemClick="FilesPanel_ItemClick">
+            <GridView.ItemTemplate>
+                <DataTemplate x:DataType="local:FtpListItemViewModel">
+                    <Grid
+                        Width="240"
+                        Height="44"
+                        Margin="4"
+                        AllowDrop="{x:Bind AllowDrop}" DragOver="Folder_DragOver" Drop="Folder_Drop">
+                        <ToolTipService.ToolTip>
+                            <ToolTip Content="{x:Bind FileName}" />
+                        </ToolTipService.ToolTip>
+                        <Grid.ContextFlyout>
+                            <MenuFlyout>
+                                <MenuFlyoutItem x:Name="contextMenuDelete" Text="删除" 
+                                                Click="ContextMenuDelete_Click" Icon="Delete"/>
+                            </MenuFlyout>
+                        </Grid.ContextFlyout>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Image
+                            x:Name="fileIcon"
+                            Grid.RowSpan="2"
+                            Width="36"
+                            Height="36"
+                            Margin="4"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            Source="{x:Bind Icon}" />
+                        <TextBlock
+                            x:Name="fileName"
+                            Grid.Column="1"
+                            HorizontalAlignment="Left"
+                            FontSize="16"
+                            Text="{x:Bind FileName}" />
+                        <TextBlock
+                            x:Name="fileSize"
+                            Grid.Row="1"
+                            Grid.Column="1"
+                            HorizontalAlignment="Left"
+                            FontSize="12"
+                            Foreground="{ThemeResource SystemControlHighlightAltBaseMediumLowBrush}"
+                            Text="{x:Bind FileSize}" />
+                    </Grid>
+                </DataTemplate>
+            </GridView.ItemTemplate>
+        </GridView>
+    </Grid>
+</Page>
