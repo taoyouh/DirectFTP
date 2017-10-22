@@ -132,7 +132,7 @@ namespace FtpExplorer
                 string remotePath = address.LocalPath + address.Fragment;
 
                 listItemsVM.Clear();
-                foreach (var item in await client.GetListingAsync(remotePath))
+                foreach (var item in (await client.GetListingAsync(remotePath)).OrderBy(x => x.Name))
                     listItemsVM.Add(await FtpListItemViewModel.FromFtpListItemAsync(item));
 
                 return true;
