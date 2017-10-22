@@ -11,6 +11,7 @@ using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
 using Windows.Storage;
+using Windows.System;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -40,6 +41,11 @@ namespace FtpExplorer
         SemaphoreSlim ftpSemaphore = new SemaphoreSlim(1, 1);
         CancellationTokenSource cancelSource = new CancellationTokenSource();
 
+        FtpJobManager jobManager = new FtpJobManager();
+        FtpJobsViewModel jobsViewModel;
+
+        StorageFolder tempFolder;
+
         System.Text.Encoding preferredEncoding;
 
         public MainPage()
@@ -53,6 +59,11 @@ namespace FtpExplorer
             forwardButton.DataContext = history;
 
             filesPanel.ItemsSource = listItemsVM;
+
+            tempFolder = ApplicationData.Current.TemporaryFolder;
+
+            jobsViewModel = new FtpJobsViewModel(jobManager, Dispatcher);
+            jobListView.ItemsSource = jobsViewModel.JobVMs;
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -178,83 +189,33 @@ namespace FtpExplorer
             }
         }
 
-        private async Task OpenFileAsync(Uri address)
+        private async Task OpenFileAsync(string remotePath)
         {
-            // 不是ftp协议则抛出异常
-            if (address.Scheme != "ftp")
-                throw new InvalidOperationException();
-
             await ftpSemaphore.WaitAsync();
-
             try
             {
-                progressBar.Visibility = Visibility.Visible;
-                progressBar.IsIndeterminate = true;
-
-                cancelSource = new CancellationTokenSource();
-
-                var client = this.client;
-
-                // Host改变时重新连接
-                if (client == null || client.Host != address.Host)
+                var file = await tempFolder.CreateFileAsync(Path.GetFileName(remotePath), CreationCollisionOption.GenerateUniqueName);
+                jobManager.AddDownloadFile(client, remotePath, file, async () =>
                 {
-                    client = new FluentFTP.FtpClient
-                    {
-                        Host = address.Host,
-                        Port = address.Port,
-                        Credentials = GetCredential(address.UserInfo)
-                    };
-                    await FtpConnectAsync(client);
-                }
-
-                if (cancelSource.IsCancellationRequested)
-                    return;
-
-                string remotePath = address.LocalPath + address.Fragment;
-                string fileName = Path.GetFileName(remotePath);
-                var localFolder = ApplicationData.Current.TemporaryFolder;
-                var localFile = await localFolder.CreateFileAsync(
-                    fileName, CreationCollisionOption.GenerateUniqueName);
-                var localPath = localFile.Path;
-
-                Progress<double> progress = new Progress<double>(x =>
-                {
-                    if (double.IsNaN(x) || double.IsInfinity(x))
-                    {
-                        progressBar.IsIndeterminate = true;
-                    }
-                    else
-                    {
-                        progressBar.IsIndeterminate = false;
-                        progressBar.Value = x;
-                    }
+                    if (!await Launcher.LaunchFileAsync(file))
+                        await Launcher.LaunchFolderAsync(tempFolder);
                 });
-                await client.DownloadFileAsync(localPath, remotePath, true, FluentFTP.FtpVerify.Retry, cancelSource.Token, progress);
-                progressBar.IsIndeterminate = true;
-
-                if (cancelSource.IsCancellationRequested)
-                    return;
-
-                File.SetAttributes(localFile.Path, System.IO.FileAttributes.ReadOnly | File.GetAttributes(localFile.Path));
-                //Windows.Storage.Provider.CachedFileUpdater.SetUpdateInformation(localFile, address.ToString(), Windows.Storage.Provider.ReadActivationMode.BeforeAccess, Windows.Storage.Provider.WriteActivationMode.AfterWrite, Windows.Storage.Provider.CachedFileOptions.RequireUpdateOnAccess);
-
-                var launchSuccess = await Windows.System.Launcher.LaunchFileAsync(localFile);
-                if (!launchSuccess)
-                    await Windows.System.Launcher.LaunchFolderAsync(localFolder);
+                jobListFlyout.ShowAt(jobListButton);
             }
-            catch (Exception exception)
+            catch(Exception ex)
             {
-                var errorText = string.Format("发生错误。详细信息：\n{0}", exception.Message);
-                var errorDialog = new MessageDialog(errorText, "无法打开文件");
-                await errorDialog.ShowAsync();
+                ContentDialog dialog = new ContentDialog()
+                {
+                    Content = string.Format("发生错误，无法启动下载。\n错误信息：{0}", ex.Message),
+                    CloseButtonText = "确定"
+                };
+                await dialog.ShowAsync();
             }
             finally
             {
-                progressBar.Visibility = Visibility.Collapsed;
                 ftpSemaphore.Release();
             }
         }
-
         private async Task UploadFilesAsync(IEnumerable<FileUploadInfo> fileInfos)
         {
             await ftpSemaphore.WaitAsync();
@@ -262,10 +223,13 @@ namespace FtpExplorer
             {
                 progressBar.Visibility = Visibility.Visible;
                 progressBar.IsIndeterminate = true;
+                jobListFlyout.ShowAt(jobListButton);
 
                 cancelSource = new CancellationTokenSource();
                 bool overwriteAll = false;
 
+                var count = fileInfos.Count();
+                int doneCount = 0;
                 foreach (var fileInfo in fileInfos)
                 {
                     if (!overwriteAll && await client.FileExistsAsync(fileInfo.RemotePath))
@@ -295,26 +259,12 @@ namespace FtpExplorer
                         }
                     }
 
-                    Progress<double> progress = new Progress<double>(x =>
-                    {
-                        progressBar.IsIndeterminate = false;
-                        progressBar.Value = x;
-                    });
+                    jobManager.AddUploadFile(client, fileInfo.RemotePath, fileInfo.File, () => { });
 
-                    using (Stream fStream = await fileInfo.File.OpenStreamForReadAsync())
-                    {
-                        if (!await client.UploadAsync(fStream, fileInfo.RemotePath, FluentFTP.FtpExists.Overwrite, true, cancelSource.Token, progress))
-                            throw new Exception("File upload failed");
-                    }
-
-                    progressBar.IsIndeterminate = true;
-
-                    if (cancelSource.IsCancellationRequested)
-                        break;
+                    doneCount++;
+                    progressBar.Value = (double)doneCount / count * 100;
                 }
-                CancelAll:
-
-                progressBar.IsIndeterminate = true;
+                CancelAll: { }
             }
             finally
             {
@@ -349,18 +299,11 @@ namespace FtpExplorer
                 }
 
                 await UploadFilesAsync(filesToUpload);
-
-                await NavigateAsync(currentAddress);
             }
             catch (Exception ex)
             {
                 string message;
-                message = string.Format("无法上传文件。错误信息：\n{0}", ex.Message);
-                if (ex.InnerException is FluentFTP.FtpCommandException cmdEx)
-                {
-                    if (cmdEx.CompletionCode == "550")
-                        message = "上传失败，没有访问权限。";
-                }
+                message = string.Format("无法创建上传任务。错误信息：\n{0}", ex.Message);
                 ContentDialog dialog = new ContentDialog()
                 {
                     Content = message,
@@ -493,7 +436,7 @@ namespace FtpExplorer
                     history.Navigate(currentAddress);
             }
             else
-                await OpenFileAsync(addressBuilder.Uri);
+                await OpenFileAsync(item.FullName);
         }
 
         private async void RefreshButton_Click(object sender, RoutedEventArgs e)

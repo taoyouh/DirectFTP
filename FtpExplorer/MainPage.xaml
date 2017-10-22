@@ -92,6 +92,29 @@
                         </Flyout>
                     </Button.Flyout>
                 </Button>
+                <Button x:Name="jobListButton"
+                        Style="{StaticResource NavigationBackButtonNormalStyle}">
+                    <SymbolIcon Symbol="List"/>
+                    <Button.Flyout>
+                        <Flyout x:Name="jobListFlyout">
+                            <ListView x:Name="jobListView">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="local:FtpJobViewModel">
+                                        <StackPanel>
+                                            <TextBlock Text="{x:Bind Name}"/>
+                                            <ProgressBar Value="{x:Bind Progress, Mode=OneWay}"
+                                                         IsIndeterminate="{x:Bind IsProgressIndeterminate, Mode=OneWay}"
+                                                         Visibility="{x:Bind ShowProgress, Mode=OneWay}"/>
+                                            <Button Content="取消" Click="{x:Bind Cancel}" 
+                                                    Visibility="{x:Bind ShowProgress, Mode=OneWay}"/>
+                                            <TextBlock Text="{x:Bind Status, Mode=OneWay}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
             </StackPanel>
         </Grid>
 
