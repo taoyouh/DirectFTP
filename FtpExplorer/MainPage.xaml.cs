@@ -227,6 +227,7 @@ namespace FtpExplorer
 
                 cancelSource = new CancellationTokenSource();
                 bool overwriteAll = false;
+                bool skipAll = false;
 
                 var count = fileInfos.Count();
                 int doneCount = 0;
@@ -234,6 +235,8 @@ namespace FtpExplorer
                 {
                     if (!overwriteAll && await client.FileExistsAsync(fileInfo.RemotePath))
                     {
+                        if (skipAll)
+                            continue;
                         OverwriteDialog content = new OverwriteDialog
                         {
                             Text = string.Format("文件{0}已存在，是否覆盖？", fileInfo.File.Name),
@@ -244,7 +247,9 @@ namespace FtpExplorer
                             Content = content,
                             PrimaryButtonText = "覆盖",
                             IsPrimaryButtonEnabled = true,
-                            CloseButtonText = "跳过"
+                            SecondaryButtonText = "跳过",
+                            IsSecondaryButtonEnabled = true,
+                            CloseButtonText = "取消"
                         };
                         switch (await dialog.ShowAsync())
                         {
@@ -252,10 +257,12 @@ namespace FtpExplorer
                                 if (content.IsChecked)
                                     overwriteAll = true;
                                 break;
-                            case ContentDialogResult.None:
+                            case ContentDialogResult.Secondary:
                                 if (content.IsChecked)
-                                    goto CancelAll;
+                                    skipAll = true;
                                 continue;
+                            case ContentDialogResult.None:
+                                goto CancelAll;
                         }
                     }
 
