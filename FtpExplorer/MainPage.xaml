@@ -137,6 +137,12 @@
             Drop="FilesPanel_Drop"
             IsItemClickEnabled="True"
             ItemClick="FilesPanel_ItemClick">
+            <GridView.ContextFlyout>
+                <MenuFlyout>
+                    <MenuFlyoutItem x:Name="panelMenuCreateFolder" Text="新建文件夹"
+                                    Click="PanelMenuCreateFolder_Click"/>
+                </MenuFlyout>
+            </GridView.ContextFlyout>
             <GridView.ItemTemplate>
                 <DataTemplate x:DataType="local:FtpListItemViewModel">
                     <Grid

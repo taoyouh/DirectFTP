@@ -216,6 +216,7 @@ namespace FtpExplorer
                 ftpSemaphore.Release();
             }
         }
+
         private async Task UploadFilesAsync(IEnumerable<FileUploadInfo> fileInfos)
         {
             await ftpSemaphore.WaitAsync();
@@ -380,6 +381,37 @@ namespace FtpExplorer
                 ftpSemaphore.Release();
             }
             return true;
+        }
+
+        private async Task CreateFolderAsync()
+        {
+            await ftpSemaphore.WaitAsync();
+            try
+            {
+                DialogContentWithTextBox content = new DialogContentWithTextBox();
+                content.ContentText = "新文件夹名称：";
+                ContentDialog dialog = new ContentDialog()
+                {
+                    Content = content,
+                    PrimaryButtonText = "确定",
+                    CloseButtonText = "取消"
+                };
+                
+                if (await dialog.ShowAsync() == ContentDialogResult.Primary)
+                {
+                    progressBar.IsIndeterminate = true;
+                    progressBar.Visibility = Visibility.Visible;
+
+                    var currentPath = currentAddress.LocalPath + currentAddress.Fragment;
+                    var remotePath = Path.Combine(currentPath, content.TextBoxText);
+                    await client.CreateDirectoryAsync(remotePath);
+                }
+            }
+            finally
+            {
+                progressBar.Visibility = Visibility.Collapsed;
+                ftpSemaphore.Release();
+            }
         }
 
         /// <summary>
@@ -586,6 +618,12 @@ namespace FtpExplorer
 
             if (await DeleteItemAsync(senderVM.Source))
                 await NavigateAsync(currentAddress);
+        }
+
+        private async void PanelMenuCreateFolder_Click(object sender, RoutedEventArgs e)
+        {
+            await CreateFolderAsync();
+            await NavigateAsync(currentAddress);
         }
     }
 
