@@ -30,6 +30,7 @@ namespace FtpExplorer
             {
                 Host = client.Host,
                 Credentials = client.Credentials,
+                DataConnectionType = client.DataConnectionType,
                 Encoding = client.Encoding
             };
         }
