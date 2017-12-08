@@ -97,21 +97,27 @@
                     <SymbolIcon Symbol="List"/>
                     <Button.Flyout>
                         <Flyout x:Name="jobListFlyout">
-                            <ListView x:Name="jobListView">
-                                <ListView.ItemTemplate>
-                                    <DataTemplate x:DataType="local:FtpJobViewModel">
-                                        <StackPanel>
-                                            <TextBlock Text="{x:Bind Name}"/>
-                                            <ProgressBar Value="{x:Bind Progress, Mode=OneWay}"
+                            <StackPanel>
+                                <TextBlock Text="任务列表" Style="{StaticResource FlyoutPickerTitleTextBlockStyle}"/>
+                                <ListView x:Name="jobListView" MinWidth="200" MinHeight="200">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate x:DataType="local:FtpJobViewModel">
+                                            <StackPanel Margin="0,4" Padding="0,4">
+                                                <TextBlock Text="{x:Bind Name}" Margin="0,2" />
+                                                <ProgressBar Value="{x:Bind Progress, Mode=OneWay}"
                                                          IsIndeterminate="{x:Bind IsProgressIndeterminate, Mode=OneWay}"
-                                                         Visibility="{x:Bind ShowProgress, Mode=OneWay}"/>
-                                            <Button Content="取消" Click="{x:Bind Cancel}" 
-                                                    Visibility="{x:Bind ShowProgress, Mode=OneWay}"/>
-                                            <TextBlock Text="{x:Bind Status, Mode=OneWay}"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
+                                                         Visibility="{x:Bind ShowProgress, Mode=OneWay}"
+                                                         Margin="0,2"/>
+                                                <Button Content="取消" Click="{x:Bind Cancel}" 
+                                                    Visibility="{x:Bind ShowProgress, Mode=OneWay}"
+                                                    Margin="0,2"/>
+                                                <TextBlock Text="{x:Bind Status, Mode=OneWay}" Margin="0,2"
+                                                           Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </StackPanel>
                         </Flyout>
                     </Button.Flyout>
                 </Button>
