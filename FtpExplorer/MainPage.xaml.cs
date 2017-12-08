@@ -101,30 +101,25 @@ namespace FtpExplorer
 
 
                 // 不是ftp协议则抛出异常
-                if (address.Scheme != "ftp")
+                if (address.Scheme != "ftp" && address.Scheme != "ftps")
                     throw new InvalidOperationException("只支持ftp协议");
 
                 // Host改变时重新连接
                 if (client == null)
                 {
-                    client = new FluentFTP.FtpClient
-                    {
-                        Host = address.Host,
-                        Port = address.Port,
-                        Credentials = GetCredential(address.UserInfo),
-                    };
+                    client = CreateFtpClient(address, GetCredential(address.UserInfo), address.Scheme == "ftps");
                     await FtpConnectAsync(client);
                 }
-                else if (client.Host != address.Host || !string.IsNullOrEmpty(address.UserInfo))
+                else if (client.Host != address.Host ||
+                    (client.EncryptionMode != FluentFTP.FtpEncryptionMode.None && address.Scheme == "ftp") ||
+                    (client.EncryptionMode != FluentFTP.FtpEncryptionMode.Explicit && address.Scheme == "ftps") ||
+                    (client.Port != 21 && address.Port < 0) ||
+                    (client.Port != address.Port && address.Port >= 0) ||
+                    !string.IsNullOrEmpty(address.UserInfo))
                 {
                     client.Disconnect();
                     client.Dispose();
-                    client = new FluentFTP.FtpClient
-                    {
-                        Host = address.Host,
-                        Port = address.Port,
-                        Credentials = GetCredential(address.UserInfo),
-                    };
+                    client = CreateFtpClient(address, GetCredential(address.UserInfo), address.Scheme == "ftps");
                     await FtpConnectAsync(client);
                 }
 
@@ -171,13 +166,38 @@ namespace FtpExplorer
             }
         }
 
+        private FluentFTP.FtpClient CreateFtpClient(Uri address, System.Net.NetworkCredential credential, bool encrypt)
+        {
+            var client = new FluentFTP.FtpClient
+            {
+                Host = address.Host,
+                Port = address.Port >= 0 ? address.Port : 21,
+                Credentials = GetCredential(address.UserInfo),
+            };
+
+            client.DataConnectionType = FluentFTP.FtpDataConnectionType.PASV;
+            client.DownloadDataType = FluentFTP.FtpDataType.Binary;
+            if (encrypt)
+            {
+                client.EncryptionMode = FluentFTP.FtpEncryptionMode.Explicit;
+                client.ValidateCertificate += FtpClient_ValidateCertificate;
+            }
+            else
+                client.EncryptionMode = FluentFTP.FtpEncryptionMode.None;
+
+            return client;
+        }
+
+        private void FtpClient_ValidateCertificate(FluentFTP.FtpClient control, FluentFTP.FtpSslValidationEventArgs e)
+        {
+            e.Accept = true;
+        }
+
         private async Task FtpConnectAsync(FluentFTP.FtpClient client)
         {
             var file = await ApplicationData.Current.TemporaryFolder.CreateFileAsync("log.log", CreationCollisionOption.OpenIfExists);
             FluentFTP.FtpTrace.LogToFile = file.Path;
 
-            client.DataConnectionType = FluentFTP.FtpDataConnectionType.PASV;
-            client.DownloadDataType = FluentFTP.FtpDataType.Binary;
             await client.ConnectAsync();
             if (client.Capabilities.HasFlag(FluentFTP.FtpCapability.UTF8))
             {
