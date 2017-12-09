@@ -140,6 +140,12 @@ namespace FtpExplorer
             {
                 string remoteDirectory = Path.GetDirectoryName(remotePath);
                 string remoteFileName = Path.GetFileName(remotePath);
+                while (!(await client.DirectoryExistsAsync(remoteDirectory)))
+                {
+                    string dir = Path.GetFileName(remoteDirectory);
+                    remoteDirectory = Path.GetDirectoryName(remoteDirectory);
+                    remoteFileName = Path.Combine(dir, remoteFileName);
+                }
                 await client.SetWorkingDirectoryAsync(remoteDirectory);
                 using (var stream = await localFile.OpenStreamForReadAsync())
                 {
