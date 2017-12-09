@@ -426,10 +426,12 @@ namespace FtpExplorer
                 switch (item.Type)
                 {
                     case FluentFTP.FtpFileSystemObjectType.Directory:
-                        await client.DeleteDirectoryAsync(item.FullName);
+                        await client.SetWorkingDirectoryAsync(Path.GetDirectoryName(item.FullName));
+                        await client.DeleteDirectoryAsync(item.Name);
                         break;
                     case FluentFTP.FtpFileSystemObjectType.File:
-                        await client.DeleteFileAsync(item.FullName);
+                        await client.SetWorkingDirectoryAsync(Path.GetDirectoryName(item.FullName));
+                        await client.DeleteFileAsync(item.Name);
                         break;
                     default:
                         throw new NotImplementedException("不支持删除除文件夹和文件以外的类型");
@@ -482,8 +484,8 @@ namespace FtpExplorer
                     progressBar.Visibility = Visibility.Visible;
 
                     var currentPath = currentAddress.LocalPath + currentAddress.Fragment;
-                    var remotePath = Path.Combine(currentPath, content.TextBoxText);
-                    await client.CreateDirectoryAsync(remotePath);
+                    await client.SetWorkingDirectoryAsync(currentPath);
+                    await client.CreateDirectoryAsync(content.TextBoxText);
                 }
             }
             finally

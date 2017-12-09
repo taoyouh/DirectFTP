@@ -26,13 +26,21 @@ namespace FtpExplorer
 
         private static FluentFTP.FtpClient CloneFtpClient(FluentFTP.FtpClient client)
         {
-            return new FluentFTP.FtpClient
+            var newClient = new FluentFTP.FtpClient
             {
                 Host = client.Host,
                 Credentials = client.Credentials,
                 DataConnectionType = client.DataConnectionType,
-                Encoding = client.Encoding
+                Encoding = client.Encoding,
+                EncryptionMode = client.EncryptionMode
             };
+            newClient.ValidateCertificate += FtpClient_ValidateCertificate;
+            return newClient;
+        }
+
+        private static void FtpClient_ValidateCertificate(FluentFTP.FtpClient control, FluentFTP.FtpSslValidationEventArgs e)
+        {
+            e.Accept = true;
         }
 
         public void AddDownloadFile(FluentFTP.FtpClient client, string remotePath, StorageFile localFile, Action callBack)
@@ -69,15 +77,18 @@ namespace FtpExplorer
 
             _jobs.Add(job);
         }
-        
+
         private async Task DownloadFileAsync(FluentFTP.FtpClient client, string remotePath, StorageFile localFile, CancellationToken token, IProgress<double> progress)
         {
             await semaphore.WaitAsync();
             try
             {
+                string remoteDirectory = Path.GetDirectoryName(remotePath);
+                string remoteFileName = Path.GetFileName(remotePath);
+                await client.SetWorkingDirectoryAsync(remoteDirectory);
                 using (var stream = await localFile.OpenStreamForWriteAsync())
                 {
-                    await client.DownloadAsync(stream, remotePath, token, progress);
+                    await client.DownloadAsync(stream, remoteFileName, token, progress);
                 }
             }
             finally
@@ -127,9 +138,12 @@ namespace FtpExplorer
             await semaphore.WaitAsync();
             try
             {
+                string remoteDirectory = Path.GetDirectoryName(remotePath);
+                string remoteFileName = Path.GetFileName(remotePath);
+                await client.SetWorkingDirectoryAsync(remoteDirectory);
                 using (var stream = await localFile.OpenStreamForReadAsync())
                 {
-                    await client.UploadAsync(stream, remotePath, FluentFTP.FtpExists.Overwrite, true, token, progress);
+                    await client.UploadAsync(stream, remoteFileName, FluentFTP.FtpExists.Overwrite, true, token, progress);
                 }
             }
             finally
