@@ -13,7 +13,7 @@ namespace FtpExplorer
 {
     class FtpJobManager
     {
-        SemaphoreSlim semaphore = new SemaphoreSlim(5);
+        SemaphoreSlim semaphore = new SemaphoreSlim(1);
 
         private ObservableCollection<FtpJob> _jobs = new ObservableCollection<FtpJob>();
         private ReadOnlyObservableCollection<FtpJob> readOnlyJobs;

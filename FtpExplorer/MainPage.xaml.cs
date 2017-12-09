@@ -245,7 +245,6 @@ namespace FtpExplorer
             {
                 progressBar.Visibility = Visibility.Visible;
                 progressBar.IsIndeterminate = true;
-                jobListFlyout.ShowAt(jobListButton);
 
                 cancelSource = new CancellationTokenSource();
                 bool overwriteAll = false;
@@ -293,7 +292,8 @@ namespace FtpExplorer
                     doneCount++;
                     progressBar.Value = (double)doneCount / count * 100;
                 }
-                CancelAll: { }
+                CancelAll:
+                jobListFlyout.ShowAt(jobListButton);
             }
             finally
             {
@@ -345,10 +345,10 @@ namespace FtpExplorer
         private async Task DownloadFileAsync(string remotePath, StorageFile file)
         {
             await ftpSemaphore.WaitAsync();
-            jobListFlyout.ShowAt(jobListButton);
             try
             {
                 jobManager.AddDownloadFile(client, remotePath, file, ()=> { });
+                jobListFlyout.ShowAt(jobListButton);
             }
             finally
             {
@@ -365,11 +365,13 @@ namespace FtpExplorer
             {
                 List<FileTransferInfo> filesToDownload = new List<FileTransferInfo>();
 
-                await FetchFilesToDownload(remotePath, folder, filesToDownload);
+                await FetchFilesToDownload(remotePath, folder, filesToDownload, new BooleanReference(false), new BooleanReference(false), new BooleanReference(false));
                 foreach (var fileDownloadInfo in filesToDownload)
                 {
                     jobManager.AddDownloadFile(client, fileDownloadInfo.RemotePath, fileDownloadInfo.File, () => { });
                 }
+
+                jobListFlyout.ShowAt(jobListButton);
             }
             finally
             {
@@ -378,14 +380,62 @@ namespace FtpExplorer
             }
         }
 
-        private async Task FetchFilesToDownload(string remotePath, StorageFolder localFolder, ICollection<FileTransferInfo> resultOutput)
+        private async Task FetchFilesToDownload(string remotePath, StorageFolder localFolder, ICollection<FileTransferInfo> resultOutput, 
+            BooleanReference overwriteAll, BooleanReference skipAll, BooleanReference cancelAll)
         {
             var remoteFiles = await client.GetListingAsync(remotePath);
             foreach (var item in remoteFiles)
             {
+                if (cancelAll.Value)
+                    return;
                 if (item.Type == FluentFTP.FtpFileSystemObjectType.File)
                 {
-                    var file = await localFolder.CreateFileAsync(item.Name, CreationCollisionOption.GenerateUniqueName);
+                    StorageFile file = null;
+                    if (overwriteAll.Value)
+                        file = await localFolder.CreateFileAsync(item.Name, CreationCollisionOption.ReplaceExisting);
+                    else
+                    {
+                        try
+                        {
+                            file = await localFolder.CreateFileAsync(item.Name, CreationCollisionOption.FailIfExists);
+                        }
+                        catch //TODO: catch what?
+                        {
+                            if (skipAll.Value)
+                                continue;
+
+                            OverwriteDialog content = new OverwriteDialog
+                            {
+                                Text = string.Format("文件{0}已存在，是否覆盖？", item.Name),
+                                CheckBoxText = "对所有项目执行此操作"
+                            };
+                            ContentDialog dialog = new ContentDialog()
+                            {
+                                Content = content,
+                                PrimaryButtonText = "覆盖",
+                                IsPrimaryButtonEnabled = true,
+                                SecondaryButtonText = "跳过",
+                                IsSecondaryButtonEnabled = true,
+                                CloseButtonText = "取消"
+                            };
+                            switch (await dialog.ShowAsync())
+                            {
+                                case ContentDialogResult.Primary:
+                                    if (content.IsChecked)
+                                        overwriteAll.Value = true;
+                                    file = await localFolder.CreateFileAsync(item.Name, CreationCollisionOption.ReplaceExisting);
+                                    break;
+                                case ContentDialogResult.Secondary:
+                                    if (content.IsChecked)
+                                        skipAll.Value = true;
+                                    continue;
+                                case ContentDialogResult.None:
+                                    cancelAll.Value = true;
+                                    return;
+                            }
+                        }
+                    }
+
                     resultOutput.Add(new FileTransferInfo
                     {
                         File = file,
@@ -395,7 +445,7 @@ namespace FtpExplorer
                 else
                 {
                     var subFolder = await localFolder.CreateFolderAsync(item.Name, CreationCollisionOption.OpenIfExists);
-                    await FetchFilesToDownload(item.FullName, subFolder, resultOutput);
+                    await FetchFilesToDownload(item.FullName, subFolder, resultOutput, overwriteAll, skipAll, cancelAll);
                 }
             }
         }
@@ -712,29 +762,43 @@ namespace FtpExplorer
             var vm = (sender as MenuFlyoutItem).DataContext as FtpListItemViewModel;
             var item = vm.Source;
 
-            if (item.Type == FluentFTP.FtpFileSystemObjectType.File)
+            try
             {
-                FileSavePicker picker = new FileSavePicker();
-                picker.SuggestedFileName = item.Name;
-                string extension = Path.GetExtension(item.Name);
-                if (!extension.StartsWith('.'))
-                    extension = ".";
-                picker.FileTypeChoices.Add(extension, new[] { extension });
-                var file = await picker.PickSaveFileAsync();
-                if (file != null)
+                if (item.Type == FluentFTP.FtpFileSystemObjectType.File)
                 {
-                    await DownloadFileAsync(item.FullName, file);
+                    FileSavePicker picker = new FileSavePicker();
+                    picker.SuggestedFileName = item.Name;
+                    string extension = Path.GetExtension(item.Name);
+                    if (!extension.StartsWith('.'))
+                        extension = ".";
+                    picker.FileTypeChoices.Add(extension, new[] { extension });
+                    var file = await picker.PickSaveFileAsync();
+                    if (file != null)
+                    {
+                        await DownloadFileAsync(item.FullName, file);
+                    }
+                }
+                else if (item.Type == FluentFTP.FtpFileSystemObjectType.Directory)
+                {
+                    FolderPicker picker = new FolderPicker();
+                    picker.FileTypeFilter.Add("*");
+                    var folder = await picker.PickSingleFolderAsync();
+                    if (folder != null)
+                    {
+                        await DownloadFolderAsync(item.FullName, folder);
+                    }
                 }
             }
-            else if (item.Type == FluentFTP.FtpFileSystemObjectType.Directory)
+            catch (Exception ex)
             {
-                FolderPicker picker = new FolderPicker();
-                picker.FileTypeFilter.Add("*");
-                var folder = await picker.PickSingleFolderAsync();
-                if (folder != null)
+                string message;
+                message = string.Format("无法创建下载任务。错误信息：\n{0}", ex.Message);
+                ContentDialog dialog = new ContentDialog()
                 {
-                    await DownloadFolderAsync(item.FullName, folder);
-                }
+                    Content = message,
+                    CloseButtonText = "确定"
+                };
+                await dialog.ShowAsync();
             }
         }
     }
@@ -766,5 +830,15 @@ namespace FtpExplorer
                 await LoadFromLocalFolderAsync(subFolder, newPath, resultOutput);
             }
         }
+    }
+    
+    class BooleanReference
+    {
+        public BooleanReference(bool value)
+        {
+            Value = value;
+        }
+
+        public bool Value;
     }
 }
