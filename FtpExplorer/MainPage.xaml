@@ -163,6 +163,8 @@
                             <MenuFlyout>
                                 <MenuFlyoutItem x:Name="contextMenuDelete" Text="删除" 
                                                 Click="ContextMenuDelete_Click" Icon="Delete"/>
+                                <MenuFlyoutItem x:Name="contextMenuDownload" Text="下载"
+                                                Click="ContextMenuDownload_Click" Icon="Download"/>
                             </MenuFlyout>
                         </Grid.ContextFlyout>
                         <Grid.ColumnDefinitions>

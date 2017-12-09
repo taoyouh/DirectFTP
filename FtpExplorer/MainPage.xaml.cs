@@ -11,6 +11,7 @@ using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
 using Windows.Storage;
+using Windows.Storage.Pickers;
 using Windows.System;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
@@ -237,7 +238,7 @@ namespace FtpExplorer
             }
         }
 
-        private async Task UploadFilesAsync(IEnumerable<FileUploadInfo> fileInfos)
+        private async Task UploadFilesAsync(IEnumerable<FileTransferInfo> fileInfos)
         {
             await ftpSemaphore.WaitAsync();
             try
@@ -305,12 +306,12 @@ namespace FtpExplorer
         {
             try
             {
-                List<FileUploadInfo> filesToUpload = new List<FileUploadInfo>();
+                List<FileTransferInfo> filesToUpload = new List<FileTransferInfo>();
                 foreach (var item in storageItems)
                 {
                     if (item is StorageFile file)
                     {
-                        filesToUpload.Add(new FileUploadInfo
+                        filesToUpload.Add(new FileTransferInfo
                         {
                             File = file,
                             RemotePath = Path.Combine(remotePath, file.Name)
@@ -318,7 +319,7 @@ namespace FtpExplorer
                     }
                     else if (item is StorageFolder folder)
                     {
-                        await FileUploadInfo.LoadFromFolderAsync(folder, remotePath, filesToUpload);
+                        await FileTransferInfo.LoadFromLocalFolderAsync(folder, remotePath, filesToUpload);
                     }
                     else
                     {
@@ -338,6 +339,64 @@ namespace FtpExplorer
                     CloseButtonText = "确定"
                 };
                 await dialog.ShowAsync();
+            }
+        }
+
+        private async Task DownloadFileAsync(string remotePath, StorageFile file)
+        {
+            await ftpSemaphore.WaitAsync();
+            jobListFlyout.ShowAt(jobListButton);
+            try
+            {
+                jobManager.AddDownloadFile(client, remotePath, file, ()=> { });
+            }
+            finally
+            {
+                ftpSemaphore.Release();
+            }
+        }
+
+        private async Task DownloadFolderAsync(string remotePath, StorageFolder folder)
+        {
+            await ftpSemaphore.WaitAsync();
+            progressBar.Visibility = Visibility.Visible;
+            progressBar.IsIndeterminate = true;
+            try
+            {
+                List<FileTransferInfo> filesToDownload = new List<FileTransferInfo>();
+
+                await FetchFilesToDownload(remotePath, folder, filesToDownload);
+                foreach (var fileDownloadInfo in filesToDownload)
+                {
+                    jobManager.AddDownloadFile(client, fileDownloadInfo.RemotePath, fileDownloadInfo.File, () => { });
+                }
+            }
+            finally
+            {
+                progressBar.Visibility = Visibility.Collapsed;
+                ftpSemaphore.Release();
+            }
+        }
+
+        private async Task FetchFilesToDownload(string remotePath, StorageFolder localFolder, ICollection<FileTransferInfo> resultOutput)
+        {
+            var remoteFiles = await client.GetListingAsync(remotePath);
+            foreach (var item in remoteFiles)
+            {
+                if (item.Type == FluentFTP.FtpFileSystemObjectType.File)
+                {
+                    var file = await localFolder.CreateFileAsync(item.Name, CreationCollisionOption.GenerateUniqueName);
+                    resultOutput.Add(new FileTransferInfo
+                    {
+                        File = file,
+                        RemotePath = item.FullName
+                    });
+                }
+                else
+                {
+                    var subFolder = await localFolder.CreateFolderAsync(item.Name, CreationCollisionOption.OpenIfExists);
+                    await FetchFilesToDownload(item.FullName, subFolder, resultOutput);
+                }
             }
         }
 
@@ -645,9 +704,40 @@ namespace FtpExplorer
             await CreateFolderAsync();
             await NavigateAsync(currentAddress);
         }
+
+        private async void ContextMenuDownload_Click(object sender, RoutedEventArgs e)
+        {
+            var vm = (sender as MenuFlyoutItem).DataContext as FtpListItemViewModel;
+            var item = vm.Source;
+
+            if (item.Type == FluentFTP.FtpFileSystemObjectType.File)
+            {
+                FileSavePicker picker = new FileSavePicker();
+                picker.SuggestedFileName = item.Name;
+                string extension = Path.GetExtension(item.Name);
+                if (!extension.StartsWith('.'))
+                    extension = ".";
+                picker.FileTypeChoices.Add(extension, new[] { extension });
+                var file = await picker.PickSaveFileAsync();
+                if (file != null)
+                {
+                    await DownloadFileAsync(item.FullName, file);
+                }
+            }
+            else if (item.Type == FluentFTP.FtpFileSystemObjectType.Directory)
+            {
+                FolderPicker picker = new FolderPicker();
+                picker.FileTypeFilter.Add("*");
+                var folder = await picker.PickSingleFolderAsync();
+                if (folder != null)
+                {
+                    await DownloadFolderAsync(item.FullName, folder);
+                }
+            }
+        }
     }
 
-    struct FileUploadInfo
+    struct FileTransferInfo
     {
         public StorageFile File { get; set; }
         public string RemotePath;
@@ -657,13 +747,13 @@ namespace FtpExplorer
             return File.Name + "," + RemotePath;
         }
 
-        public static async Task LoadFromFolderAsync(StorageFolder folder, string remotePath, ICollection<FileUploadInfo> resultOutput)
+        public static async Task LoadFromLocalFolderAsync(StorageFolder folder, string remotePath, ICollection<FileTransferInfo> resultOutput)
         {
             string newPath = Path.Combine(remotePath, folder.Name);
-            var files = await folder.GetFilesAsync(Windows.Storage.Search.CommonFileQuery.DefaultQuery, 0, 100);
+            var files = await folder.GetFilesAsync();
             foreach (var file in files)
             {
-                resultOutput.Add(new FileUploadInfo
+                resultOutput.Add(new FileTransferInfo
                 {
                     File = file,
                     RemotePath = Path.Combine(newPath, file.Name)
@@ -671,7 +761,7 @@ namespace FtpExplorer
             }
             foreach(var subFolder in await folder.GetFoldersAsync())
             {
-                await LoadFromFolderAsync(subFolder, newPath, resultOutput);
+                await LoadFromLocalFolderAsync(subFolder, newPath, resultOutput);
             }
         }
     }
