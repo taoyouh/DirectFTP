@@ -642,6 +642,23 @@ namespace FtpExplorer
 
         private async void LoginSubmitButton_Click(object sender, RoutedEventArgs e)
         {
+            await LoginAsync();
+        }
+
+        private async void LoginPanel_KeyDown(object sender, KeyRoutedEventArgs e)
+        {
+            if (loginSubmitButton.IsEnabled)
+            {
+                if (e.Key == VirtualKey.Enter)
+                {
+                    e.Handled = true;
+                    await LoginAsync();
+                }
+            }
+        }
+
+        private async Task LoginAsync()
+        {
             loginSubmitButton.IsEnabled = false;
             await ftpSemaphore.WaitAsync();
             loginSubmitButton.IsEnabled = false;

@@ -56,7 +56,7 @@
                     <SymbolIcon Symbol="Account" />
                     <Button.Flyout>
                         <Flyout x:Name="loginFlyout" Opening="LoginFlyout_Opening">
-                            <StackPanel Width="200" Orientation="Vertical">
+                            <StackPanel Width="200" Orientation="Vertical" KeyDown="LoginPanel_KeyDown">
                                 <TextBlock
                                     x:Name="loginErrorMessage"
                                     Margin="6"
