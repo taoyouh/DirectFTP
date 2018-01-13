@@ -781,11 +781,13 @@ namespace FtpExplorer
                 else if (item.Type == FluentFTP.FtpFileSystemObjectType.Directory)
                 {
                     FolderPicker picker = new FolderPicker();
+                    picker.CommitButtonText = "下载到此处";
                     picker.FileTypeFilter.Add("*");
                     var folder = await picker.PickSingleFolderAsync();
                     if (folder != null)
                     {
-                        await DownloadFolderAsync(item.FullName, folder);
+                        var subFolder = await folder.CreateFolderAsync(item.Name, CreationCollisionOption.OpenIfExists);
+                        await DownloadFolderAsync(item.FullName, subFolder);
                     }
                 }
             }
