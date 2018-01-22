@@ -823,36 +823,65 @@ namespace FtpExplorer
 
         private async void PanelMenuUploadFile_Click(object sender, RoutedEventArgs e)
         {
-            string remotePath = currentAddress.LocalPath + currentAddress.Fragment;
-
-            FileOpenPicker picker = new FileOpenPicker();
-            picker.CommitButtonText = "上传";
-            picker.FileTypeFilter.Add("*");
-            var files = await picker.PickMultipleFilesAsync();
-
-            FileTransferInfo[] fileUploadList = new FileTransferInfo[files.Count];
-            for (int i = 0; i < files.Count; i++)
+            try
             {
-                fileUploadList[i] = new FileTransferInfo
+                string remotePath = currentAddress.LocalPath + currentAddress.Fragment;
+
+                FileOpenPicker picker = new FileOpenPicker();
+                picker.CommitButtonText = "上传";
+                picker.FileTypeFilter.Add("*");
+                var files = await picker.PickMultipleFilesAsync();
+
+                if (files.Any())
                 {
-                    File = files[i],
-                    RemotePath = Path.Combine(remotePath, files[i].Name)
-                };
+                    FileTransferInfo[] fileUploadList = new FileTransferInfo[files.Count];
+                    for (int i = 0; i < files.Count; i++)
+                    {
+                        fileUploadList[i] = new FileTransferInfo
+                        {
+                            File = files[i],
+                            RemotePath = Path.Combine(remotePath, files[i].Name)
+                        };
+                    }
+                    await UploadFilesAsync(fileUploadList);
+                }
             }
-            await UploadFilesAsync(fileUploadList);
+            catch (Exception ex)
+            {
+                string message = string.Format("创建上传任务失败。错误信息：\n{0}", ex.Message);
+                ContentDialog dialog = new ContentDialog
+                {
+                    Content = message,
+                    CloseButtonText = "确定"
+                };
+                await dialog.ShowAsync();
+            }
         }
 
         private async void PanelMenuUploadFolder_Click(object sender, RoutedEventArgs e)
         {
-            string remotePath = currentAddress.LocalPath + currentAddress.Fragment;
+            try
+            {
+                string remotePath = currentAddress.LocalPath + currentAddress.Fragment;
 
-            FolderPicker picker = new FolderPicker();
-            picker.CommitButtonText = "上传";
-            picker.FileTypeFilter.Add("*");
-            var folder = await picker.PickSingleFolderAsync();
+                FolderPicker picker = new FolderPicker();
+                picker.CommitButtonText = "上传";
+                picker.FileTypeFilter.Add("*");
+                var folder = await picker.PickSingleFolderAsync();
 
-            if (folder != null)
-                await UploadStorageItems(new[] { folder }, remotePath);
+                if (folder != null)
+                    await UploadStorageItems(new[] { folder }, remotePath);
+            }
+            catch (Exception ex)
+            {
+                string message = string.Format("创建上传任务失败。错误信息：\n{0}", ex.Message);
+                ContentDialog dialog = new ContentDialog
+                {
+                    Content = message,
+                    CloseButtonText = "确定"
+                };
+                await dialog.ShowAsync();
+            }
         }
     }
 
