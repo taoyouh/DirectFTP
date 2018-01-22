@@ -115,6 +115,11 @@ namespace FtpExplorer
             }
         }
 
+        private async void PanelMenuRefresh_Click(object sender, RoutedEventArgs e)
+        {
+            await NavigateAsync(currentAddress);
+        }
+
         private async void ContextMenuDelete_Click(object sender, RoutedEventArgs e)
         {
             var senderVM = (sender as MenuFlyoutItem).DataContext as FtpListItemViewModel;

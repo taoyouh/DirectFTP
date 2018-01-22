@@ -145,6 +145,8 @@
             ItemClick="FilesPanel_ItemClick">
             <GridView.ContextFlyout>
                 <MenuFlyout>
+                    <MenuFlyoutItem x:Name="panelMenuRefresh"
+                                    Click="PanelMenuRefresh_Click" Text="刷新"/>
                     <MenuFlyoutItem x:Name="panelMenuCreateFolder" Text="新建文件夹"
                                     Click="PanelMenuCreateFolder_Click"/>
                     <MenuFlyoutItem x:Name="panelMenuUploadFile" Text="上传文件"
