@@ -95,6 +95,7 @@
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
+    <Compile Include="MainPage.AddressBar.cs" />
     <Compile Include="DialogContentWithTextBox.xaml.cs">
       <DependentUpon>DialogContentWithTextBox.xaml</DependentUpon>
     </Compile>
@@ -115,6 +116,7 @@
       <SubType>Designer</SubType>
     </AppxManifest>
     <None Include="FtpExplorer_TemporaryKey.pfx" />
+    <Compile Include="MainPage.FilePanel.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="Properties\Default.rd.xml" />
