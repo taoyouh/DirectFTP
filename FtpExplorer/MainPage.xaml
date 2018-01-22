@@ -147,6 +147,10 @@
                 <MenuFlyout>
                     <MenuFlyoutItem x:Name="panelMenuCreateFolder" Text="新建文件夹"
                                     Click="PanelMenuCreateFolder_Click"/>
+                    <MenuFlyoutItem x:Name="panelMenuUploadFile" Text="上传文件"
+                                    Click="PanelMenuUploadFile_Click" Icon="Upload"/>
+                    <MenuFlyoutItem x:Name="panelMenuUploadFolder" Text="上传文件夹"
+                                    Click="PanelMenuUploadFolder_Click" Icon="Upload"/>
                 </MenuFlyout>
             </GridView.ContextFlyout>
             <GridView.ItemTemplate>

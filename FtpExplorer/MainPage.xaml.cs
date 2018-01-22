@@ -820,6 +820,40 @@ namespace FtpExplorer
                 await dialog.ShowAsync();
             }
         }
+
+        private async void PanelMenuUploadFile_Click(object sender, RoutedEventArgs e)
+        {
+            string remotePath = currentAddress.LocalPath + currentAddress.Fragment;
+
+            FileOpenPicker picker = new FileOpenPicker();
+            picker.CommitButtonText = "上传";
+            picker.FileTypeFilter.Add("*");
+            var files = await picker.PickMultipleFilesAsync();
+
+            FileTransferInfo[] fileUploadList = new FileTransferInfo[files.Count];
+            for (int i = 0; i < files.Count; i++)
+            {
+                fileUploadList[i] = new FileTransferInfo
+                {
+                    File = files[i],
+                    RemotePath = Path.Combine(remotePath, files[i].Name)
+                };
+            }
+            await UploadFilesAsync(fileUploadList);
+        }
+
+        private async void PanelMenuUploadFolder_Click(object sender, RoutedEventArgs e)
+        {
+            string remotePath = currentAddress.LocalPath + currentAddress.Fragment;
+
+            FolderPicker picker = new FolderPicker();
+            picker.CommitButtonText = "上传";
+            picker.FileTypeFilter.Add("*");
+            var folder = await picker.PickSingleFolderAsync();
+
+            if (folder != null)
+                await UploadStorageItems(new[] { folder }, remotePath);
+        }
     }
 
     struct FileTransferInfo
