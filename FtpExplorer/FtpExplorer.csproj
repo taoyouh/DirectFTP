@@ -112,6 +112,7 @@
     <Compile Include="OverwriteDialog.xaml.cs">
       <DependentUpon>OverwriteDialog.xaml</DependentUpon>
     </Compile>
+    <Compile Include="PasswordManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="FtpJobManager.cs" />
   </ItemGroup>
@@ -197,6 +198,12 @@
     <PackageReference Include="Microsoft.NETCore.UniversalWindowsPlatform">
       <Version>6.0.4</Version>
     </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FtpExplorer.Data\FtpExplorer.Data.csproj">
+      <Project>{c7d7ac5a-c04e-4d9a-9588-fbabb751c0b7}</Project>
+      <Name>FtpExplorer.Data</Name>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">
     <VisualStudioVersion>14.0</VisualStudioVersion>

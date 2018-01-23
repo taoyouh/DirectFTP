@@ -70,15 +70,25 @@
                                     Checked="AnonymousCheckBox_Checked"
                                     Content="匿名登录"
                                     Unchecked="AnonymousCheckBox_Unchecked" />
-                                <TextBox
+                                <AutoSuggestBox
                                     x:Name="userNameBox"
                                     Margin="6"
-                                    PlaceholderText="用户名" />
+                                    Header="用户名"
+                                    QuerySubmitted="UserNameBox_QuerySubmitted"
+                                    GettingFocus="UserNameBox_GettingFocus"
+                                    LostFocus="UserNameBox_LostFocus"
+                                    TextChanged="UserNameBox_TextChanged"/>
                                 <PasswordBox
                                     x:Name="passwordBox"
                                     Margin="6"
                                     InputScope="Password"
-                                    PlaceholderText="密码" />
+                                    Header="密码"/>
+                                <CheckBox
+                                    x:Name="rememberPasswordCheckBox"
+                                    Margin="6"
+                                    Content="记住密码"
+                                    Checked="rememberPasswordCheckBox_Checked"
+                                    Unchecked="rememberPasswordCheckBox_Unchecked"/>
                                 <Button
                                     x:Name="loginSubmitButton"
                                     Margin="6"

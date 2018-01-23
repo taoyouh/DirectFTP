@@ -65,6 +65,15 @@ namespace FtpExplorer
 
             jobsViewModel = new FtpJobsViewModel(jobManager, Dispatcher);
             jobListView.ItemsSource = jobsViewModel.JobVMs;
+
+            var settings = ApplicationData.Current.LocalSettings.Values;
+            if (settings.ContainsKey(RememberPasswordSetting))
+            {
+                if ((bool)settings[RememberPasswordSetting])
+                {
+                    rememberPasswordCheckBox.IsChecked = true;
+                }
+            }
         }
 
         protected override async void OnNavigatedTo(NavigationEventArgs e)
@@ -586,15 +595,24 @@ namespace FtpExplorer
                 {
                     try
                     {
+                        string userName = userNameBox.Text;
+                        string password = passwordBox.Password;
+                        bool rememberPassword = rememberPasswordCheckBox.IsChecked == true;
                         client.Disconnect();
                         client.Credentials = new System.Net.NetworkCredential()
                         {
-                            UserName = userNameBox.Text,
-                            Password = passwordBox.Password
+                            UserName = userName,
+                            Password = password
                         };
                         await FtpConnectAsync(client);
                         var navigateResult = NavigateAsync(currentAddress);
                         loginFlyout.Hide();
+                        
+                        if (rememberPassword)
+                        {
+                            await PasswordManager.Current.SavePasswordAsync(
+                                currentAddress.Host, currentAddress.Port, userName, password);
+                        }
                     }
                     catch (FluentFTP.FtpCommandException exception)
                     {
