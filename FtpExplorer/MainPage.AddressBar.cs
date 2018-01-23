@@ -92,6 +92,8 @@ namespace FtpExplorer
 
         private async void UserNameBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
         {
+            if (args.ChosenSuggestion == null)
+                return;
             sender.Text = args.ChosenSuggestion as string;
             if (currentAddress != null)
             {

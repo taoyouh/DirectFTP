@@ -7,6 +7,40 @@
     xmlns:local="using:FtpExplorer"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
+    <Page.Resources>
+        <Style x:Key="AutoSuggestBoxStyleNoSpellCheck" TargetType="AutoSuggestBox">
+            <Setter Property="VerticalAlignment" Value="Top"/>
+            <Setter Property="IsTabStop" Value="False"/>
+            <Setter Property="TextBoxStyle" Value="{StaticResource AutoSuggestBoxTextBoxStyle}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="AutoSuggestBox">
+                        <Grid x:Name="LayoutRoot">
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="Orientation">
+                                    <VisualState x:Name="Landscape"/>
+                                    <VisualState x:Name="Portrait"/>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                            <TextBox x:Name="TextBox" IsSpellCheckEnabled="False" ScrollViewer.BringIntoViewOnFocusChange="False" DesiredCandidateWindowAlignment="BottomEdge" Header="{TemplateBinding Header}" Margin="0" PlaceholderText="{TemplateBinding PlaceholderText}" Style="{TemplateBinding TextBoxStyle}" Width="{TemplateBinding Width}" Canvas.ZIndex="0"/>
+                            <Popup x:Name="SuggestionsPopup">
+                                <Border x:Name="SuggestionsContainer">
+                                    <Border.RenderTransform>
+                                        <TranslateTransform x:Name="UpwardTransform"/>
+                                    </Border.RenderTransform>
+                                    <ListView x:Name="SuggestionsList" Background="{ThemeResource AutoSuggestBoxSuggestionsListBackground}" BorderThickness="{ThemeResource AutoSuggestListBorderThemeThickness}" BorderBrush="{ThemeResource AutoSuggestBoxSuggestionsListBorderBrush}" DisplayMemberPath="{TemplateBinding DisplayMemberPath}" ItemContainerStyle="{TemplateBinding ItemContainerStyle}" ItemTemplate="{TemplateBinding ItemTemplate}" IsItemClickEnabled="True" ItemTemplateSelector="{TemplateBinding ItemTemplateSelector}" MaxHeight="{ThemeResource AutoSuggestListMaxHeight}" Margin="{ThemeResource AutoSuggestListMargin}" Padding="{ThemeResource AutoSuggestListPadding}">
+                                        <ListView.ItemContainerTransitions>
+                                            <TransitionCollection/>
+                                        </ListView.ItemContainerTransitions>
+                                    </ListView>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Page.Resources>
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.RowDefinitions>
@@ -44,7 +78,8 @@
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Center"
                 InputScope="Url"
-                KeyDown="AddressBox_KeyDown" />
+                KeyDown="AddressBox_KeyDown"
+                IsSpellCheckEnabled="False" />
             <StackPanel Grid.Column="2" Orientation="Horizontal">
                 <Button
                     x:Name="refreshButton"
@@ -77,6 +112,7 @@
                                     QuerySubmitted="UserNameBox_QuerySubmitted"
                                     GettingFocus="UserNameBox_GettingFocus"
                                     LostFocus="UserNameBox_LostFocus"
+                                    Style="{StaticResource AutoSuggestBoxStyleNoSpellCheck}"
                                     TextChanged="UserNameBox_TextChanged"/>
                                 <PasswordBox
                                     x:Name="passwordBox"
