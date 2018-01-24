@@ -198,6 +198,9 @@
     <PackageReference Include="Microsoft.NETCore.UniversalWindowsPlatform">
       <Version>6.0.4</Version>
     </PackageReference>
+    <PackageReference Include="Zhaobang.ExtendedExecutionHelper">
+      <Version>1.0.0</Version>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\FtpExplorer.Data\FtpExplorer.Data.csproj">

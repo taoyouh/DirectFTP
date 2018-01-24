@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Windows.Foundation;
 using Windows.Storage;
 using Windows.UI.Core;
 
@@ -162,6 +163,8 @@ namespace FtpExplorer
 
     class FtpJob
     {
+        private Deferral deferral;
+
         public Task Task { get; set; }
         public string Name { get; set; }
 
@@ -192,6 +195,14 @@ namespace FtpExplorer
             {
                 if (_status != value)
                 {
+                    if (_status == JobStatus.Created && value != JobStatus.Created)
+                    {
+                        if (deferral != null)
+                        {
+                            deferral.Complete();
+                        }
+                    }
+
                     _status = value;
                     StatusChanged?.Invoke(this, new EventArgs());
                 }
@@ -209,6 +220,11 @@ namespace FtpExplorer
         public Exception Exception { get; set; }
 
         public CancellationTokenSource CancellationTokenSource { get; set; }
+
+        public FtpJob()
+        {
+            deferral = Zhaobang.ExtendedExecutionHelper.ExtendedExecutionHelper.GetDeferral();
+        }
 
         public event EventHandler ProgressChanged;
 
