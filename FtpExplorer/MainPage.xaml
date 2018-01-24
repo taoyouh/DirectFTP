@@ -126,7 +126,6 @@
                                     Header="用户名"
                                     Template="{StaticResource AutoSuggestBoxUserNameTemplate}"
                                     QuerySubmitted="UserNameBox_QuerySubmitted"
-                                    SuggestionChosen="UserNameBox_SuggestionChosen"
                                     GettingFocus="UserNameBox_GettingFocus"
                                     LostFocus="UserNameBox_LostFocus"
                                     TextChanged="UserNameBox_TextChanged"/>

@@ -18,6 +18,8 @@ namespace FtpExplorer
 
         private async void AddressBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
         {
+            if (args.ChosenSuggestion != null)
+                sender.Text = args.ChosenSuggestion as string;
             Uri address;
             if (!Uri.TryCreate(addressBox.Text, UriKind.Absolute, out address))
             {
@@ -146,26 +148,24 @@ namespace FtpExplorer
             }
         }
 
-        private async void UserNameBox_SuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
-        {
-            if (args.SelectedItem == null)
-                return;
-            sender.Text = args.SelectedItem as string;
-            if (currentAddress != null)
-            {
-                string password = await PasswordManager.Current.GetPasswordAsync(
-                    currentAddress.Host, currentAddress.Port, userNameBox.Text);
-                if (password != null)
-                    passwordBox.Password = password;
-            }
-        }
-
         private async void UserNameBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
         {
             if (args.ChosenSuggestion != null)
+            {
+                sender.Text = args.ChosenSuggestion as string;
+                if (currentAddress != null)
+                {
+                    string password = await PasswordManager.Current.GetPasswordAsync(
+                        currentAddress.Host, currentAddress.Port, userNameBox.Text);
+                    if (password != null)
+                        passwordBox.Password = password;
+                }
                 await LoginAsync();
+            }
             else
+            {
                 passwordBox.Focus(FocusState.Keyboard);
+            }
         }
 
         private void RememberPasswordCheckBox_Checked(object sender, RoutedEventArgs e)
