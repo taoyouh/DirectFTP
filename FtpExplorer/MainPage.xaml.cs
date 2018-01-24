@@ -140,6 +140,17 @@ namespace FtpExplorer
                 foreach (var item in (await client.GetListingAsync(remotePath)).OrderBy(x => x.Name))
                     listItemsVM.Add(await FtpListItemViewModel.FromFtpListItemAsync(item));
 
+                using (Data.HistoryContext db = new Data.HistoryContext())
+                {
+                    Data.HistoryEntry h = new Data.HistoryEntry
+                    {
+                        Time = DateTimeOffset.Now,
+                        Url = uriBuilder.Uri.ToString()
+                    };
+                    await db.AddAsync(h);
+                    await db.SaveChangesAsync();
+                }
+
                 return true;
             }
             catch (FluentFTP.FtpCommandException exception)

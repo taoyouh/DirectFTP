@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.EntityFrameworkCore;
+using System;
 using System.IO;
 using System.Linq;
 using Windows.ApplicationModel.DataTransfer;
@@ -15,24 +16,37 @@ namespace FtpExplorer
     {
         private const string RememberPasswordSetting = "RememberPassword";
 
-        private async void AddressBox_KeyDown(object sender, KeyRoutedEventArgs e)
+        private async void AddressBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
         {
-            if (e.Key == Windows.System.VirtualKey.Enter)
+            Uri address;
+            if (!Uri.TryCreate(addressBox.Text, UriKind.Absolute, out address))
             {
-                e.Handled = true;
-                Uri address;
-                if (!Uri.TryCreate(addressBox.Text, UriKind.Absolute, out address))
+                if (!Uri.TryCreate("ftp://" + addressBox.Text, UriKind.Absolute, out address))
                 {
-                    if (!Uri.TryCreate("ftp://" + addressBox.Text, UriKind.Absolute, out address))
-                    {
-                        return;
-                    }
+                    return;
                 }
-
-                await NavigateAsync(address);
-                if (history.Current != currentAddress)
-                    history.Navigate(currentAddress);
             }
+
+            await NavigateAsync(address);
+            if (history.Current != currentAddress)
+                history.Navigate(currentAddress);
+        }
+
+        private async void AddressBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+        {
+            if (args.Reason == AutoSuggestionBoxTextChangeReason.SuggestionChosen)
+                return;
+            string text = sender.Text;
+            string[] result;
+            using (var db = new Data.HistoryContext())
+            {
+                var query = from Data.HistoryEntry item in db.Histories
+                            where item.Url.Contains(text)
+                            orderby item.Time descending
+                            select item.Url;
+                result = await query.Take(10).Distinct().ToArrayAsync();
+            }
+            sender.ItemsSource = result;
         }
 
         private async void RefreshButton_Click(object sender, RoutedEventArgs e)
@@ -90,20 +104,6 @@ namespace FtpExplorer
             passwordBox.Password = string.Empty;
         }
 
-        private async void UserNameBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
-        {
-            if (args.ChosenSuggestion == null)
-                return;
-            sender.Text = args.ChosenSuggestion as string;
-            if (currentAddress != null)
-            {
-                string password = await PasswordManager.Current.GetPasswordAsync(
-                    currentAddress.Host, currentAddress.Port, userNameBox.Text);
-                if (password != null)
-                    passwordBox.Password = password;
-            }
-        }
-
         private async void UserNameBox_GettingFocus(UIElement sender, GettingFocusEventArgs args)
         {
             AutoSuggestBox autoSuggestBox = sender as AutoSuggestBox;
@@ -121,6 +121,8 @@ namespace FtpExplorer
 
         private async void UserNameBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
         {
+            if (args.Reason == AutoSuggestionBoxTextChangeReason.SuggestionChosen)
+                return;
             if (currentAddress == null)
             {
                 sender.ItemsSource = null;
@@ -144,12 +146,34 @@ namespace FtpExplorer
             }
         }
 
-        private void rememberPasswordCheckBox_Checked(object sender, RoutedEventArgs e)
+        private async void UserNameBox_SuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
+        {
+            if (args.SelectedItem == null)
+                return;
+            sender.Text = args.SelectedItem as string;
+            if (currentAddress != null)
+            {
+                string password = await PasswordManager.Current.GetPasswordAsync(
+                    currentAddress.Host, currentAddress.Port, userNameBox.Text);
+                if (password != null)
+                    passwordBox.Password = password;
+            }
+        }
+
+        private async void UserNameBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+        {
+            if (args.ChosenSuggestion != null)
+                await LoginAsync();
+            else
+                passwordBox.Focus(FocusState.Keyboard);
+        }
+
+        private void RememberPasswordCheckBox_Checked(object sender, RoutedEventArgs e)
         {
             ApplicationData.Current.LocalSettings.Values[RememberPasswordSetting] = true;
         }
 
-        private void rememberPasswordCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        private void RememberPasswordCheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
             ApplicationData.Current.LocalSettings.Values[RememberPasswordSetting] = false;
         }

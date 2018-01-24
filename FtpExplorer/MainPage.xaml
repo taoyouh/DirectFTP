@@ -8,38 +8,52 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
     <Page.Resources>
-        <Style x:Key="AutoSuggestBoxStyleNoSpellCheck" TargetType="AutoSuggestBox">
-            <Setter Property="VerticalAlignment" Value="Top"/>
-            <Setter Property="IsTabStop" Value="False"/>
-            <Setter Property="TextBoxStyle" Value="{StaticResource AutoSuggestBoxTextBoxStyle}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="AutoSuggestBox">
-                        <Grid x:Name="LayoutRoot">
-                            <VisualStateManager.VisualStateGroups>
-                                <VisualStateGroup x:Name="Orientation">
-                                    <VisualState x:Name="Landscape"/>
-                                    <VisualState x:Name="Portrait"/>
-                                </VisualStateGroup>
-                            </VisualStateManager.VisualStateGroups>
-                            <TextBox x:Name="TextBox" IsSpellCheckEnabled="False" ScrollViewer.BringIntoViewOnFocusChange="False" DesiredCandidateWindowAlignment="BottomEdge" Header="{TemplateBinding Header}" Margin="0" PlaceholderText="{TemplateBinding PlaceholderText}" Style="{TemplateBinding TextBoxStyle}" Width="{TemplateBinding Width}" Canvas.ZIndex="0"/>
-                            <Popup x:Name="SuggestionsPopup">
-                                <Border x:Name="SuggestionsContainer">
-                                    <Border.RenderTransform>
-                                        <TranslateTransform x:Name="UpwardTransform"/>
-                                    </Border.RenderTransform>
-                                    <ListView x:Name="SuggestionsList" Background="{ThemeResource AutoSuggestBoxSuggestionsListBackground}" BorderThickness="{ThemeResource AutoSuggestListBorderThemeThickness}" BorderBrush="{ThemeResource AutoSuggestBoxSuggestionsListBorderBrush}" DisplayMemberPath="{TemplateBinding DisplayMemberPath}" ItemContainerStyle="{TemplateBinding ItemContainerStyle}" ItemTemplate="{TemplateBinding ItemTemplate}" IsItemClickEnabled="True" ItemTemplateSelector="{TemplateBinding ItemTemplateSelector}" MaxHeight="{ThemeResource AutoSuggestListMaxHeight}" Margin="{ThemeResource AutoSuggestListMargin}" Padding="{ThemeResource AutoSuggestListPadding}">
-                                        <ListView.ItemContainerTransitions>
-                                            <TransitionCollection/>
-                                        </ListView.ItemContainerTransitions>
-                                    </ListView>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <ControlTemplate x:Key="AutoSuggestBoxUserNameTemplate" TargetType="AutoSuggestBox">
+            <Grid x:Name="LayoutRoot">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroup x:Name="Orientation">
+                        <VisualState x:Name="Landscape"/>
+                        <VisualState x:Name="Portrait"/>
+                    </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+                <TextBox x:Name="TextBox" IsSpellCheckEnabled="False" ScrollViewer.BringIntoViewOnFocusChange="False" DesiredCandidateWindowAlignment="BottomEdge" Header="{TemplateBinding Header}" Margin="0" PlaceholderText="{TemplateBinding PlaceholderText}" Style="{TemplateBinding TextBoxStyle}" Width="{TemplateBinding Width}" Canvas.ZIndex="0"/>
+                <Popup x:Name="SuggestionsPopup">
+                    <Border x:Name="SuggestionsContainer">
+                        <Border.RenderTransform>
+                            <TranslateTransform x:Name="UpwardTransform"/>
+                        </Border.RenderTransform>
+                        <ListView x:Name="SuggestionsList" Background="{ThemeResource AutoSuggestBoxSuggestionsListBackground}" BorderThickness="{ThemeResource AutoSuggestListBorderThemeThickness}" BorderBrush="{ThemeResource AutoSuggestBoxSuggestionsListBorderBrush}" DisplayMemberPath="{TemplateBinding DisplayMemberPath}" ItemContainerStyle="{TemplateBinding ItemContainerStyle}" ItemTemplate="{TemplateBinding ItemTemplate}" IsItemClickEnabled="True" ItemTemplateSelector="{TemplateBinding ItemTemplateSelector}" MaxHeight="{ThemeResource AutoSuggestListMaxHeight}" Margin="{ThemeResource AutoSuggestListMargin}" Padding="{ThemeResource AutoSuggestListPadding}">
+                            <ListView.ItemContainerTransitions>
+                                <TransitionCollection/>
+                            </ListView.ItemContainerTransitions>
+                        </ListView>
+                    </Border>
+                </Popup>
+            </Grid>
+        </ControlTemplate>
+        <ControlTemplate x:Key="AutoSuggestBoxUrlTemplate" TargetType="AutoSuggestBox">
+            <Grid x:Name="LayoutRoot">
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroup x:Name="Orientation">
+                        <VisualState x:Name="Landscape"/>
+                        <VisualState x:Name="Portrait"/>
+                    </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+                <TextBox x:Name="TextBox" IsSpellCheckEnabled="False" InputScope="Url" ScrollViewer.BringIntoViewOnFocusChange="False" DesiredCandidateWindowAlignment="BottomEdge" Header="{TemplateBinding Header}" Margin="0" PlaceholderText="{TemplateBinding PlaceholderText}" Style="{TemplateBinding TextBoxStyle}" Width="{TemplateBinding Width}" Canvas.ZIndex="0"/>
+                <Popup x:Name="SuggestionsPopup">
+                    <Border x:Name="SuggestionsContainer">
+                        <Border.RenderTransform>
+                            <TranslateTransform x:Name="UpwardTransform"/>
+                        </Border.RenderTransform>
+                        <ListView x:Name="SuggestionsList" Background="{ThemeResource AutoSuggestBoxSuggestionsListBackground}" BorderThickness="{ThemeResource AutoSuggestListBorderThemeThickness}" BorderBrush="{ThemeResource AutoSuggestBoxSuggestionsListBorderBrush}" DisplayMemberPath="{TemplateBinding DisplayMemberPath}" ItemContainerStyle="{TemplateBinding ItemContainerStyle}" ItemTemplate="{TemplateBinding ItemTemplate}" IsItemClickEnabled="True" ItemTemplateSelector="{TemplateBinding ItemTemplateSelector}" MaxHeight="{ThemeResource AutoSuggestListMaxHeight}" Margin="{ThemeResource AutoSuggestListMargin}" Padding="{ThemeResource AutoSuggestListPadding}">
+                            <ListView.ItemContainerTransitions>
+                                <TransitionCollection/>
+                            </ListView.ItemContainerTransitions>
+                        </ListView>
+                    </Border>
+                </Popup>
+            </Grid>
+        </ControlTemplate>
     </Page.Resources>
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
@@ -72,14 +86,15 @@
                     <SymbolIcon Symbol="Forward" />
                 </Button>
             </StackPanel>
-            <TextBox
+            <AutoSuggestBox
                 x:Name="addressBox"
                 Grid.Column="1"
                 HorizontalAlignment="Stretch"
                 VerticalAlignment="Center"
-                InputScope="Url"
-                KeyDown="AddressBox_KeyDown"
-                IsSpellCheckEnabled="False" />
+                Template="{StaticResource AutoSuggestBoxUrlTemplate}"
+                QueryIcon="Forward"
+                QuerySubmitted="AddressBox_QuerySubmitted"
+                TextChanged="AddressBox_TextChanged"/>
             <StackPanel Grid.Column="2" Orientation="Horizontal">
                 <Button
                     x:Name="refreshButton"
@@ -109,10 +124,11 @@
                                     x:Name="userNameBox"
                                     Margin="6"
                                     Header="用户名"
+                                    Template="{StaticResource AutoSuggestBoxUserNameTemplate}"
                                     QuerySubmitted="UserNameBox_QuerySubmitted"
+                                    SuggestionChosen="UserNameBox_SuggestionChosen"
                                     GettingFocus="UserNameBox_GettingFocus"
                                     LostFocus="UserNameBox_LostFocus"
-                                    Style="{StaticResource AutoSuggestBoxStyleNoSpellCheck}"
                                     TextChanged="UserNameBox_TextChanged"/>
                                 <PasswordBox
                                     x:Name="passwordBox"
@@ -123,8 +139,8 @@
                                     x:Name="rememberPasswordCheckBox"
                                     Margin="6"
                                     Content="记住密码"
-                                    Checked="rememberPasswordCheckBox_Checked"
-                                    Unchecked="rememberPasswordCheckBox_Unchecked"/>
+                                    Checked="RememberPasswordCheckBox_Checked"
+                                    Unchecked="RememberPasswordCheckBox_Unchecked"/>
                                 <Button
                                     x:Name="loginSubmitButton"
                                     Margin="6"

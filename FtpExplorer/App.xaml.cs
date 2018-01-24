@@ -38,6 +38,11 @@ namespace FtpExplorer
             {
                 db.Database.Migrate();
             }
+
+            using (var db = new Data.HistoryContext())
+            {
+                db.Database.Migrate();
+            }
         }
 
         /// <summary>

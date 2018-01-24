@@ -16,6 +16,16 @@ namespace FtpExplorer.Data
         }
     }
 
+    public class HistoryContext : DbContext
+    {
+        public DbSet<HistoryEntry> Histories { get; set; }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder.UseSqlite("Data Source=histories.sqlite");
+        }
+    }
+
     public class Password
     {
         public int PasswordId { get; set; }
@@ -27,5 +37,14 @@ namespace FtpExplorer.Data
         public string UserName { get; set; }
         [Required]
         public byte[] EncryptedPassword { get; set; }
+    }
+
+    public class HistoryEntry
+    {
+        public int HistoryEntryId { get; set; }
+        [Required]
+        public DateTimeOffset Time { get; set; }
+        [Required]
+        public string Url { get; set; }
     }
 }
